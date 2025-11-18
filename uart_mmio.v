@@ -266,8 +266,10 @@ module uart_mmio #(
     always @(posedge clk) begin: MMIO_READ
         if (!resetn) begin
             rx_rd_ptr <= 0;
+            mem_rdata <= 0;
         end
-        if (mem_valid && !mem_instr) begin
+        if (mem_valid && (!mem_instr) && mem_wstrb==0) begin
+            mem_ready <= 1;
             case (mem_addr)
                 UART_TX:          mem_rdata <= zext32_8(tx_fifo[tx_sd_ptr]);
                 UART_STATUS:      mem_rdata <= status_wire;
@@ -286,7 +288,10 @@ module uart_mmio #(
                 end
                 default:          mem_rdata <= 0;
             endcase
-        end else mem_rdata <= 0;
+        end else begin
+            mem_rdata <= 0;
+            mem_ready <= 0;
+        end
     end
 
     always @(posedge clk) begin: MMIO_WRITE
@@ -296,7 +301,7 @@ module uart_mmio #(
             baud_reg  <= CLK_FREQ / DEFAULT_BAUD;
             tx_wr_ptr <= 0;
         end else begin
-            if (mem_valid && !mem_instr) begin
+            if (mem_valid && (!mem_instr) && mem_wstrb!=0) begin
                 mem_ready <= 1;
                 case(mem_addr)
                     UART_TX:
