@@ -12,7 +12,7 @@
 `endif
 
 module uart_mmio #(
-    parameter [31:0]  BASE_ADDR     = 32'h8000_1000,
+    parameter [31:0]  BASE_ADDR     = 32'h8100_1000,
     parameter [31:0]  CLK_FREQ      = 32'd100_000_000,      // oscc default 100MHz
     parameter integer DEFAULT_BAUD  = `UART_DEFAULT_BAUD,
     parameter integer FIFO_DEPTH    = `UART_FIFO_DEPTH,
@@ -75,6 +75,7 @@ module uart_mmio #(
     wire rx_is_empty = (rx_count == 0);
 
     wire [$clog2(FIFO_DEPTH):0] tx_count_inc;
+
     wire [31:0] wmask = { {8{mem_wstrb[3]}}, {8{mem_wstrb[2]}}, {8{mem_wstrb[1]}}, {8{mem_wstrb[0]}} };
     wire [31:0] wdata = mem_wdata & wmask;
 
@@ -263,13 +264,19 @@ module uart_mmio #(
         irq <= eoi ? 0 : irq_next;
     end
 
+    always @(posedge clk) begin
+        if (!resetn) begin
+            mem_ready <= 0;
+        end
+        mem_ready <= mem_valid && !mem_instr;
+    end
+
     always @(posedge clk) begin: MMIO_READ
         if (!resetn) begin
             rx_rd_ptr <= 0;
             mem_rdata <= 0;
         end
         if (mem_valid && (!mem_instr) && mem_wstrb==0) begin
-            mem_ready <= 1;
             case (mem_addr)
                 UART_TX:          mem_rdata <= zext32_8(tx_fifo[tx_sd_ptr]);
                 UART_STATUS:      mem_rdata <= status_wire;
@@ -290,7 +297,6 @@ module uart_mmio #(
             endcase
         end else begin
             mem_rdata <= 0;
-            mem_ready <= 0;
         end
     end
 
@@ -302,7 +308,6 @@ module uart_mmio #(
             tx_wr_ptr <= 0;
         end else begin
             if (mem_valid && (!mem_instr) && mem_wstrb!=0) begin
-                mem_ready <= 1;
                 case(mem_addr)
                     UART_TX:
                     if (zext32(tx_count) < FIFO_DEPTH) begin: WRITE_BITS_TO_TX_FIFO
@@ -319,7 +324,7 @@ module uart_mmio #(
                     end
                     default: ;
                 endcase
-            end else mem_ready <= 0;
+            end
         end
     end
 
