@@ -267,8 +267,7 @@ module uart_mmio #(
     always @(posedge clk) begin
         if (!resetn) begin
             mem_ready <= 0;
-        end
-        mem_ready <= mem_valid && !mem_instr;
+        end else mem_ready <= mem_valid && !mem_instr;
     end
 
     always @(posedge clk) begin: MMIO_READ
